@@ -1,0 +1,1051 @@
+openapi: '3.0.3'
+
+info:
+    title: US Bureau of Economic Analysis (BEA) data retrieval API
+    version: '2020-02-11_1.0.0'
+
+    description: |
+        This API specification is derived from the documentation
+        [BEA API (PDF)](https://apps.bea.gov/api/_pdf/bea_web_service_api_user_guide.pdf)
+        documentation. That document should be consulted for the most detailed
+        and up to date information. Users can follow @BEA_News on Twitter for
+        timely notifications of API updates. At various points, this
+        specification duplicates the documentation provided in that document;
+        all credit and other rights to that documentation belong to BEA. This
+        API does not include information for methods marked as deprecated.
+
+        The BEA API uses the value of the `method` query parameter to determine
+        the set of additional valid query parameters in a request and the data
+        returned in a responses. This type of API is not well supported by the
+        [OpenAPI Specification](https://github.com/OAI/OpenAPI-Specification)
+        (see <https://github.com/OAI/OpenAPI-Specification/issues/164>). This
+        specification, therefore, indicates specifics of the BEA API that
+        cannot be expressed (or easily or clearly expressed) with OpenAPI, in
+        documentation comments.
+
+        The BEA API does not provide an API version; therefore, this API is
+        versioned by the creation date of that document with a suffixed
+        [semantic version](https://semver.org) used to indicate when updates
+        are made to this specification.
+
+        ## API Calling Limits
+
+        The API has default calling limits as shown below. These limits are
+        meant to protect BEA’s API and webserver infrastructure from activity
+        that may be detrimental to that infrastructure and/or unfairly impede
+        other API users.
+
+        * 1000 API calls per minute, and/or
+        * 30 errors per minute, and/or
+        * 200 MB (raw data) per minute.
+
+        Any user that exceeds the above calling limits will receive an
+        explanatory error message for each API call until the per-minute cause
+        has expired. The best way to avoid such errors is to design your
+        application to call the API within these limits, e.g., programmatically
+        regulate the frequency/size of API calls.
+
+
+externalDocs:
+    description: Original BEA API specification
+    url: https://apps.bea.gov/api/_pdf/bea_web_service_api_user_guide.pdf
+
+servers:
+    - url: 'https://apps.bea.gov/api'
+
+components:
+    securitySchemes:
+        UserId:
+            type: apiKey
+            name: UserID
+            in: query
+            description: |
+                The user identifier received after registring at
+                <https://apps.bea.gov/api/signup> and activating the recieved
+                API key.
+    schemas:
+        ApiResponse:
+            type: object
+            properties:
+                BEAAPI:
+                    type: object
+                    properties:
+                        Request:
+                            $ref: '#/components/schemas/Request'
+
+                        Results:
+                            oneOf:
+                                - $ref: '#/components/schemas/DatasetList'
+                                - $ref: '#/components/schemas/ParameterList'
+                                - $ref: '#/components/schemas/ParamValueList'
+                                - $ref: '#/components/schemas/DataResult'
+                                - $ref: '#/components/schemas/Error'
+                    required:
+                        - Request
+                        - Results
+            required:
+                - BEAAPI
+            description: |
+                Every API response includes a `BEAAPI` object that contains the
+                response data. The `Request` child object contains the request
+                arguments. The data contained in the `Results` child object
+                depends on the operation provided to the `method` parameter.
+
+        Request:
+            properties:
+                RequestParam:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RequestParam'
+            description: |
+                The `RequestParam` array will contain an element for
+                every query parameter, echoing the value provided for
+                that query parameter.
+
+        RequestParam:
+            type: object
+            properties:
+                ParameterName:
+                    type: string
+                ParameterValue:
+                    type: string
+            required:
+                - ParameterName
+                - ParameterValue
+
+        DatasetList:
+            type: object
+            properties:
+                Dataset:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Dataset'
+            description: |
+                A `Dataset` array is returned when `method=GetDataSetList`.
+                The returned array contains an object with the name and
+                description of every available dataset.
+
+        Dataset:
+            type: object
+            properties:
+                DatasetName:
+                    type: string
+                DatasetDescription:
+                    type: string
+            required:
+                - DatasetName
+                - DatasetDescription
+
+        ParameterList:
+            type: object
+            properties:
+                Parameter:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Parameter'
+            description: |
+                A `Parameter` array is returned when `method=GetParameterList`.
+                The returned array contains an object describing each parameter
+                available for the specified dataset.
+
+        Parameter:
+            type: object
+            properties:
+                ParameterName:
+                    type: string
+                ParameterDataType:
+                    type: string
+                    enum:
+                        - 'String'
+                        - 'Integer'
+                ParameterDescription:
+                    type: string
+                ParameterIsRequiredFlag:
+                    type: string
+                    enum:
+                        - '0'
+                        - '1'
+                    description: |
+                        * 0: the parameter is optional and can be
+                          omitted from a request
+
+                        * 1: the parameter is required and must be
+                          included with a request
+                ParameterDefaultValue:
+                    type: string
+                    description: |
+                        The default value that will be used if the
+                        parameter is not included in a request
+                MultipleAcceptedFlag:
+                    type: string
+                    enum:
+                        - '0'
+                        - '1'
+                    description: |
+                        * 0: the parameter can only have a single value
+
+                        * 1: the parameter can have multipe,
+                          comma-seperated values
+                AllValue:
+                    type: string
+                    description: |
+                        The parameter value that can be supplied to
+                        indicate that all available parameter values
+                        should be used
+            required:
+                - ParameterName
+                - ParameterDataType
+                - ParameterDescription
+                - ParameterIsRequiredFlag
+                - ParameterDefaultValue
+                - MultipleAcceptedFlag
+
+        ParamValueList:
+            type: object
+            properties:
+                ParamValue:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ParamValue'
+            description: |
+                A `ParamValue` array is returned when
+                `method=GetParameterValuesFiltered`. The returned array
+                contains an object describing the valid values for the
+                specified `TargetParameter` given the other provided parameter
+                values.
+
+        ParamValue:
+            type: object
+            properties:
+                Key:
+                    type: string
+                    description: |
+                        A valid value that can be used in a subsequent
+                        request specifying the parameter
+                Desc:
+                    type: string
+            required:
+                - Key
+                - Desc
+
+        DataResult:
+            type: object
+            properties:
+                Statistic:
+                    type: string
+                    description: A string description of the returned data
+                UTCProductionTime:
+                    type: string
+                    format: date-time
+                    description: Timestamp the request data was returned
+                Dimensions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Dimension'
+                Data:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Data'
+                Notes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Note'
+            required:
+                - Statistic
+                - UTCProductionTime
+                - Dimensions
+                - Data
+            description: |
+                A `DataResult` array is returned when `method=GetData`.
+
+        Dimension:
+            type: object
+            properties:
+                Oridinal:
+                    type: string
+                Name:
+                    type: string
+                DataType:
+                    type: string
+                    enum:
+                        - 'Numeric'
+                        - 'String'
+                IsValue:
+                    type: string
+                    enum:
+                        - '0'
+                        - '1'
+                    description: |
+                        A value of `0` indicates a dimension that is
+                        descriptive of the statistic; a value of `1` indicates
+                        the statistic of interest.
+
+                        If the statistic of interest (where `"IsValue": "1") is
+                        numeric, the statistic can be aggregated using the
+                        descriptive dimensions (where `"IsValue": "0").
+            required:
+                - Ordinal
+                - Name
+                - DataType
+                - IsValue
+
+        # NOTE: the properties and their data types for this object vary based
+        # on the data requested; therefore, this type permits any type by not
+        # specifying any typing information.
+        Data:
+            description: |
+                The properties of a data object depend on the dataset
+                requested.  Consult
+                <https://apps.bea.gov/api/_pdf/bea_web_service_api_user_guide.pdf>
+                for the properties associated with a specific dataset.
+
+        Note:
+            type: object
+            properties:
+                NoteRef:
+                    type: string
+                NoteText:
+                    type: string
+            description: |
+                A note provides additional details or qualifications about the
+                result node referencing the note.
+
+        Error:
+            type: object
+            properties:
+                APIErrorCode:
+                    type: string
+                APIErrorDescription:
+                    type: string
+                ErrorDetail:
+                    type: object
+                    properties:
+                        Description:
+                            type: string
+            required:
+                - APIErrorCode
+                - APIErrorDescription
+
+        Frequency:
+            type: array
+            items:
+                type: string
+                enum:
+                    - 'A'
+                    - 'M'
+                    - 'Q'
+                    - 'QSA'
+                    - 'QNSA'
+            description: |
+                Enumeration of temporal frequency values with the following
+                meaning:
+
+                * A: Annual
+                * M: Monthly
+                * Q: Quarterly
+                * QSA: Quarterly Seasonally Adjusted
+                * QNSA: Quarterly Not Seasonally Adjusted
+
+        Affiliation:
+            type: string
+            enum:
+                - 'AllAffiliations'
+                - 'Unaffiliated'
+                - 'Affiliated'
+                - 'UsParents'
+                - 'UsAffiliates'
+            description: |
+                * AllAffiliations: the total for all trade, whether affiliated
+                  or unaffiliated
+
+                * Unaffiliated: unaffiliated trade
+
+                * Affiliated: affiliated trade
+
+                * UsParents: U.S. parents' trade with their foreign affiliates
+
+                * UsAffiliates: U.S. affiliates' trade with their foreign
+                  parent groups
+
+        AffiliationOrAll:
+            oneOf:
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/Affiliation'
+                - $ref: '#/components/schemas/All'
+
+        All:
+            type: string
+            enum:
+                - 'All'
+                - 'Last5'
+                - 'Last10'
+            description: |
+                A special value indicating that all available years should be
+                used
+
+        CountryOrAll:
+            oneOf:
+                - type: string
+                - type: string
+                  enum:
+                    - 'All'
+                    - 'AllCountries'
+
+        DirectionOfInvestmet:
+            type: string
+            enum:
+                - 'Outward'
+                - 'Inward'
+                - 'State'
+                - 'Parent'
+            description: |
+                For Direct Investment (DI) and Activities of Multinational
+                Enterprises (AMNE) statistics:
+
+                * Outward: for AMNE statistics, provides data for foreign
+                  affiliates; for DI statistics, provides data on transactions
+                  and positions between foreign affiliates and their U. S.
+                  parent enterprises.
+
+                * Inward: for AMNE statistics, provides data for U. S.
+                  affiliates; for DI statistics, provides data on transactions
+                  and positions between U. S. affiliates and their foreign
+                  parent groups.
+
+                And additionall for AMNE statistics:
+
+                * State: provides data on U. S. affiliates of foreign
+                  multinational enterprises at the state level. Note that only
+                  data on employment (and for 2007 and earlier years, property,
+                  plant, and equipment) are available at the state level.
+
+                * Parent: provides data on U. S. parent enterprises.
+
+        GeoFips:
+            oneOf:
+                - type: array
+                  items:
+                    type: string
+                - type: string
+                  enum:
+                    - 'STATE'
+                    - 'COUNTY'
+                    - 'MSA'
+                    - 'MIC'
+                    - 'PORT'
+                    - 'DIV'
+                    - 'CSA'
+                    - 'PO code'
+            description: |
+                GeoFips specifies geography.
+
+                It can be all states (`STATE`), all counties (`COUNTY`), all
+                Metropolitan Statistical Areas (`MSA`), all Micropolitan
+                Statistical Areas (`MIC`), all Metropolitan Divisions (`DIV`),
+                all Combined Statistical Areas (`CSA`), all
+                metropolitan/nonmetropolitan portions (`PORT`), or state post
+                office abbreviation for all counties in one state (e.g. NY). It
+                can also be a list of ANSI state-county codes or metropolitan
+                area codes. For example, the counties in Connecticut and
+                Delaware&mdash;09001, 09003, 09005, 09007, 09009, 09011, 09013,
+                09015, 10001, 10003, 10005.
+
+                State, county, and metropolitan statistical area FIPS codes can
+                be obtained from Census at
+                <https://www.census.gov/geo/www/ansi/ansi.html>. A
+                comprehensive list of MSAs and their component counties can be
+                accessed at <https://apps.bea.gov/regional/docs/msalist.cfm>.
+
+        StringListOrAll:
+            oneOf:
+                - type: array
+                  items:
+                    type: string
+                - $ref: '#/components/schemas/All'
+
+        TradeDirection:
+            type: string
+            enum:
+                - 'Exports'
+                - 'Imports'
+                - 'Balance'
+                - 'SupplementalIns'
+            description: |
+                * Balance: exports less imports
+                * SupplementalIns: supplemental detail on insurance
+                  transactions
+
+        TradeDirectionOrAll:
+            oneOf:
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/TradeDirection'
+                - $ref: '#/components/schemas/All'
+
+        YearNumber:
+            type: string
+            pattern: '^\d{4}$'
+            description: A four digit year (e.g. `1970`, `2020`, etc.)
+
+        YesNo:
+            type: string
+            enum:
+                - 'Yes'
+                - 'No'
+
+paths:
+    /data:
+        get:
+            description: |
+                The data retrieved by this endpoint and its associated
+                structure is determined by the value of the `method` query
+                parameter.
+
+                The following `method` parameter values specify metadata
+                methods:
+
+                * `GetDataSetList`: retrieves a list of the datasets currently
+                  offered, will return results containing `Dataset`s
+
+                * `GetParameterList`: retrieves a list of the parameters
+                  (required and optional) for a particular dataset, will return
+                  results containing `Parameter`s
+
+                * `GetParameterValues`: retrieves a list of the valid values
+                  for a particular parameter, will return results containing
+                  `ParamValue`s
+
+                * `GetParameterValuesFiltered`: retrieves a list of the valid
+                  parameter values for the parameter named in the
+                  `TargetParameter` parameter, using the values provided for
+                  any additional dataset parameters, will return results
+                  containing `ParamValues`s
+
+                `GetData` is used to retrieve data.
+
+            parameters:
+                  # This parameter is required for all requests
+                - name: method
+                  in: query
+                  required: true
+                  schema:
+                    type: string
+                    enum:
+                        - 'GetDataSetList'
+                        - 'GetParameterList'
+                        - 'GetParameterValues'
+                        - 'GetParameterValuesFiltered'
+                        - 'GetData'
+                  description: |
+                    Specifies the operation to be performed
+
+                  # This parameter is optional for all requests
+                - name: ResultFormat
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                    enum:
+                        - 'json'
+                        - 'xml'
+                    default: 'json'
+                  description: |
+                    Specified the format of returned results
+
+                # Parameters used for metadata methods {{{
+
+                - name: DataSetName
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                  description: |
+                      This query parameter is required for the following
+                      `method` values:
+
+                      * `GetParameterList`
+                      * `GetParameterValues`
+                      * `GetParameterValuesFiltered`
+
+                - name: ParameterName
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                  description: |
+                      This query parameter is required for the following
+                      `method` values:
+
+                      * `GetParameterValues`
+                      * `GetParameterValuesFiltered`
+
+                - name: TargetParameter
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                  description: |
+                    This query parameter is required for the
+                    `GetParameterValuesFiltered` `method` value.
+
+                # Parameters used for metadata methods }}}
+
+                - name: Affiliation
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/AffiliationOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=IntlServTrade`
+
+                    The `Affiliation` parameter specifies the trade direction
+                    for the services transactions.
+
+                - name: AreaOfCountry
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/CountryOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=ITA`
+
+                      The default parameter value (`AllCountries`) returns the
+                      total for all countries, while `All` returns all data
+                      available by area and country.
+
+                      Exactly one `AreaOrCountry` parameter value must be
+                      provided in all data requests unless exactly one
+                      `Indicator` parameter value is requested. This single
+                      parameter value may not be either `ALL`  or
+                      `AllCountries`.  That is, a list of countries or the
+                      grand total for all countries can only be specified if a
+                      single Indicator is specified.
+
+                    * `DataSetName=IntlServTrade`
+
+                      The default parameter value (`AllCountries`) returns the
+                      total for all countries, while `All` returns all data
+                      available by area and country.
+
+                      Exactly one `AreaOrCountry` parameter value must be
+                      provided in all data requests unless exactly one
+                      `TypeOfService` parameter value other than `All` is
+                      requested.  That is, a list of countries can only be
+                      specified if a single `TypeOfService` is specified.
+
+                    For information on geographic area definitions, see
+                    <https://www.bea.gov/international/bp_web/geographic_area_definitions.cfm>
+
+                - name: Classification
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                    Refer to the `GetParameterValues` method for the list of
+                    `Classification` parameter values and their descriptions.
+                    Note that not all series are available for all
+                    classifications. The `Classification` parameter is required
+                    and must be single-valued.
+
+                - name: Component
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=IIP`
+
+                    The `Component` parameter specifies either the position
+                    (`Pos`) or a component in the change of position from the
+                    previous period. For instance, the parameter value
+                    `ChgPosTrans` specifies changes due to financial-account
+                    transactions.
+
+                - name: Country
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                    Refer to the `GetParameterValues` method for the list of
+                    three-digit country and region identification values.  Use
+                    `000` for the total of all countries and `all` for all
+                    available countries and regions. Separate multiple values
+                    with a comma.
+
+                - name: DirectionOfInvestment
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/DirectionOfInvestmet'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                - name: Frequency
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/Frequency'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=NIPA`
+
+                        Accepts `A`, `M`, and `Q`
+
+                    * `DataSetName=NIUnderlyingDetail`
+
+                        Accepts `A`, `M`, and `Q`
+
+                    * `DataSetName=GDPbyIndustry`
+
+                        Accepts `A` and `Q`
+
+                    * `DataSetName=ITA`
+
+                        Accepts `A`, `QSA`, and `QNSA`
+
+                    * `DataSetName=IIP`
+
+                        Accepts `A` and `QNSA`
+
+                    * `DataSetName=UnderlyingGDPbyIndustry`
+
+                        Accepts `Q`
+
+                    The `Frequency` parameter indicates whether annual or
+                    quarterly data are to be returned. This parameter is
+                    required to query data and does accept multiple comma
+                    separated values.
+
+                    For some data sources, if a data request is submitted for
+                    both annual and quarterly data from a table that is only
+                    published annually then only the annual data will be
+                    returned.
+
+                - name: GeoFips
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/GeoFips'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=Regional`
+
+                - name: GetFootnotes
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/YesNo'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                - name: Indicator
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=ITA`
+
+                    The `Indicator` parameter specifies the type of
+                    transaction.  The `Indicator` parameter values usually
+                    correspond to lines in ITA tables at
+                    <https://www.bea.gov/iTable/iTableHtml.cfm?reqid=62&step=2&isuri=1&6210=1>.
+
+                    Exactly one `Indicator` parameter value must be provided in
+                    all data requests unless exactly one `AreaOrCountry`
+                    parameter value other than `ALL` and `AllCountries` is
+                    requested. That is, multiple Indicators can only be
+                    specified if a single `AreaOrCountry` is specified.
+
+                - name: Industry
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                    * `DataSetName=GDPbyIndustry`
+
+                    * `DataSetName=UnderlyingGDPbyIndustry`
+
+                    The `Industry` parameter indicates what periods of data are
+                    requested. This parameter is required to query data and
+                    does accept multiple comma separated values. Use the
+                    keyword `ALL` to return all industries.
+
+                    The `Descr` in the `GetParameterValues` result will contain
+                    (`Q`) if the industry is published quarterly and (`A`)
+                    indicating that the industry is also published annually.
+
+                    If a data request is submitted for an industry that is not
+                    published in the requested tables the user will receive an
+                    `Error` response.
+
+                - name: LineCode
+                  in: query
+                  required: false
+                  schema:
+                    type: integer
+                    format: int32
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=Regional`
+
+                    LineCode corresponds to the statistic in a table. Exactly
+                    one LineCode must be provided.
+
+                - name: SeriesId
+                  in: query
+                  required: false
+                  schema:
+                    oneOf:
+                        - type: array
+                          items:
+                            type: integer
+                            format: int32
+                        - $ref: '#/components/schemas/All'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                        Accepts `A`
+
+                - name: State
+                  in: query
+                  required: false
+                  schema:
+                    oneOf:
+                        - type: array
+                          items:
+                            type: string
+                            pattern: '^\d{2}$'
+                        - $ref: '#/components/schemas/All'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=MNE`
+
+                - name: TableID
+                  in: query
+                  required: false
+                  schema:
+                    oneOf:
+                        - type: array
+                          items:
+                            type: integer
+                            format: int32
+                        - $ref: '#/components/schemas/All'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=GDPbyIndustry`
+
+                    * `DataSetName=InputOutput`
+
+                - name: TableName
+                  in: query
+                  required: false
+                  schema:
+                    type: string
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=NIPA`
+
+                    * `DataSetName=NIUnderlyingDetail`
+
+                    * `DataSetName=FixedAssets`
+
+                    * `DataSetName=Regional`
+
+                - name: TypeOfInvestment
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=IIP`
+
+                    The `TypeOfInvestment` parameter values usually correspond
+                    to lines in IIP tables at
+                    <https://www.bea.gov/iTable/iTableHtml.cfm?reqid=62&step=5&isuri=1&6210=2>.
+
+                    Exactly one `TypeOfInvestment` parameter value must be
+                    provided in all data requests unless exactly one `Year`
+                    parameter value other than `ALL` is requested. That is,
+                    more than one `TypeOfInvestment` can only be specified if a
+                    single `Year` is specified.
+
+                - name: TradeDirection
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/TradeDirectionOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=IntlServTrade`
+
+                    The `TradeDirection` parameter specifies the trade
+                    direction of the services transactions.
+
+                - name: TypeOfService
+                  in: query
+                  required: false
+                  schema:
+                    $ref: '#/components/schemas/StringListOrAll'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=IntlServTrade`
+
+                    The `TypeOfService` parameter specifies the type of service
+                    being traded (e.g. travel, transport, or insurance
+                    services).
+
+                    Exactly one `TypeOfService` parameter value other than
+                    `All` must be provided in all data requests unless exactly
+                    one `AreaOrCountry` parameter value other than `All` is
+                    requested. That is, multiple Indicators can only be
+                    specified if a single `AreaOrCountry` parameter is
+                    specified.
+
+                - name: Year
+                  in: query
+                  required: false
+                  schema:
+                    oneOf:
+                        - type: array
+                          items:
+                            $ref: '#/components/schemas/YearNumber'
+                        - $ref: '#/components/schemas/All'
+                  style: form
+                  explode: false
+                  description: |
+                    This query parameter is used by the following datasets when
+                    `method=GetData` calls:
+
+                    * `DataSetName=NIPA`
+
+                    * `DataSetName=NIUnderlyingDetail`
+
+                    * `DataSetName=FixedAssets`
+
+                    * `DataSetName=GDPbyIndustry`
+
+                    * `DataSetName=ITA`
+
+                    * `DataSetName=IIP`
+
+                    * `DataSetName=InputOutput`
+
+                    * `DataSetName=UnderlyingGDPbyIndustry`
+
+                    * `DataSetName=IntlServTrade`
+
+                    * `DataSetName=Regional`
+
+                        Accepts `All`, `Last5`, and `Last10`
+
+                    The `Year` parameter specifies the year(s) of the data
+                    requested. Multiple years are requested by specifying them
+                    as a comma-delimited string, e.g. `2000,2001,2002`.
+
+                    If the request supplies the special value `All` for the
+                    `Year` parameter, all available years of data for that
+                    table are returned. Note that using the `All` value for all
+                    years can return large amounts of data, and should be
+                    avoided when the actual required years are known.
+
+                    When data is requested for years that are not available for
+                    the requested table, only data that is available is
+                    returned; if no data is available for the requested
+                    year(s), an error will be returned.
+
+                    When calling the `GetParameterValues` method and passing a
+                    `TableName` value the response will identify the valid
+                    years for that table.
+
+            # The response does not use OpenAPI `links`, because JSON Pointer
+            # does not provide a mechanism to select object properties from a
+            # list of objects, which would be required for the `links` value
+            # selectors to be valid.
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ApiResponse'
+                    description: |
+                        The API will return a 200 response code for all
+                        executed requests, even if the request contained
+                        invalid parameters or values. In the case of a request
+                        containing invalid parameters or values the `Results`
+                        object will contain an `Error` object.
